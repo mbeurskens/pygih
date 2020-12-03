@@ -3,6 +3,7 @@
 import argparse
 import os
 import shutil
+import stat
 import datetime
 
 hook_file_types = ['pre-commit', 'pre-push']
@@ -46,8 +47,11 @@ def _write_hook_file(file, arguments):
     if not arguments.strict:
         file.write("echo 'Pylint hook not running in strict mode."
                    " Errors are shown but no error code will be returned.' \n")
-    file.write(r"FILES=$(find . -type d \( " + ignore_string +
-               r" \) -prune -false -o -name '*.py')" + "\n")
+    if arguments.ignore:
+        file.write(r"FILES=$(find . -type d \( " + ignore_string +
+                   r" \) -prune -false -o -name '*.py')" + "\n")
+    else:
+        file.write(r"FILES=$(find . -name '*.py')" + "\n")
     file.write(r"pylint $FILES " + "\n")
     if arguments.strict:
         file.write("if [ $? -ne 0 ]\n" +
@@ -60,6 +64,12 @@ def _write_hook_file(file, arguments):
     file.write("exit 0")
 
 
+def _make_file_executable(file_path):
+    """ Make file executable by the user. """
+    status = os.stat(file_path)
+    os.chmod(file_path, status.st_mode | stat.S_IEXEC)
+
+
 def _install_pylint_hook(arguments):
     hook_path = os.path.join(arguments.dir, '.git', 'hooks')
     file_path = os.path.join(hook_path, arguments.hook)
@@ -69,6 +79,7 @@ def _install_pylint_hook(arguments):
 
     with open(file_path, _get_file_mode(arguments)) as file:
         _write_hook_file(file, arguments)
+    _make_file_executable(file_path)
 
 
 if __name__ == "__main__":
